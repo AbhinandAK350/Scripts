@@ -10,26 +10,28 @@ BLUE='\033[0;34m'
 YELLOW='\033[0;33m'
 GREEN='\033[0;32m'
 NOC='\033[0;m'
+x=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+y=$(awk '/MemFree/ {print $2}' /proc/meminfo)
 
 get_tools()
 {
-	echo -e "${BLUE}Installing tools...${NOC}"
+	echo -e "\n${BLUE}Installing tools...${NOC}"
 	echo " "
 	# Install build package for debian based linux
 	sudo apt-get -y install bc bash git-core gnupg build-essential zip curl make automake autogen autoconf autotools-dev libtool shtool python m4 gcc libtool zlib1g-dev flex bison libssl-dev
 
-	echo -e "${BLUE}Cloning toolchain...${NOC}"
+	echo -e "\n${BLUE}Cloning toolchain...${NOC}"
 	echo " "
 	# Clone toolchain
 	git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b android-10.0.0_r35 --depth=1 stock
 	git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 -b android-10.0.0_r35 --depth=1 stock_32
 
-	echo -e "${BLUE}Cloning AnyKernel3...${NOC}"
+	echo -e "\n${BLUE}Cloning AnyKernel3...${NOC}"
 	echo " "
 	# Clone AnyKernel3
 	git clone https://github.com/AbhinandAK350/AnyKernel3 -b onclite
 
-	echo -e "${BLUE}Downoading clang...${NOC}"
+	echo -e "\n${BLUE}Downoading clang...${NOC}"
 	echo " "
 	#Download Clang
 	if [ ! -d clang ]; then
@@ -39,7 +41,7 @@ get_tools()
 	    rm clang-r383902c.tar.gz
 	fi
 
-	echo -e "${BLUE}Downloading libufdt...${NOC}"
+	echo -e "\n${BLUE}Downloading libufdt...${NOC}"
 	echo " "
 	# Download libufdt
 	if [ ! -d libufdt ]; then
@@ -48,7 +50,7 @@ get_tools()
 	    tar xvzf utils.tar.gz -C libufdt
 	    rm utils.tar.gz
 	fi
-	echo -e "${GREEN}Tools installation done! Starting build...${NOC}"
+	echo -e "\n${GREEN}Tools installation done! Starting build...${NOC}"
 	echo " "
 }
 
@@ -56,7 +58,10 @@ build()
 {
 	echo "Entert the name of the defconfig"
 	read DEFCONFIG
-	echo -e "${BLUE}Build started...${NOC}"
+	echo -e "\n${YELLOW}Processor cores: "$(nproc)
+	echo -e "${YELLOW}Total Memory: "`expr $x \/ 1024 \/ 1024` GB
+	echo -e "${YELLOW}Free Memory: "`expr $y \/ 1024 \/ 1024` GB
+	echo -e "\n${BLUE}Build started...${NOC}"
 	echo ""
 	# Main environtment
 	KERNEL_DIR=$PWD
@@ -86,30 +91,14 @@ build()
 	make clean &>/dev/null
 	cd ..
 
-	# For MIUI Build
-	# Credit Adek Maulana <adek@techdro.id>
-	#OUTDIR="$KERNEL_DIR/out/"
-	#VENDOR_MODULEDIR="$KERNEL_DIR/AnyKernel3/modules/vendor/lib/modules"
-	#STRIP="$KERNEL_DIR/stock/bin/$(echo "$(find "$KERNEL_DIR/stock/bin" -type f -name "aarch64-*-gcc")" | awk -F '/' '{print $NF}' |\
-    #    	    sed -e 's/gcc/strip/')"
-	#for MODULES in $(find "${OUTDIR}" -name '*.ko'); do
-	#    "${STRIP}" --strip-unneeded --strip-debug "${MODULES}"
-	#    "${OUTDIR}"/scripts/sign-file sha512 \
-	#            "${OUTDIR}/certs/signing_key.pem" \
-	#            "${OUTDIR}/certs/signing_key.x509" \
-	#            "${MODULES}"
-	#    find "${OUTDIR}" -name '*.ko' -exec cp {} "${VENDOR_MODULEDIR}" \;
-	#done
-	#echo -e "\n(i) ${BLUE}Done moving modules${NOC}"
-
 	cd $ZIP_DIR
 	cp $KERN_IMG zImage
 	make normal &>/dev/null
-	echo -e "${BLUE}Flashable zip generated under $ZIP_DIR.${NOC}"
+	echo -e "\n${BLUE}Flashable zip generated under $ZIP_DIR.${NOC}"
 	cd ..
 	# Build end
 	echo ""
-	echo -e "${GREEN}Build successfull!${NOC}"
+	echo -e "\n${GREEN}Build successfull!${NOC}\n"
 }
 
 echo "Do you want to setup build environment?(Y/N)"
