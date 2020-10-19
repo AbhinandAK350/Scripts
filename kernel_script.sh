@@ -14,7 +14,7 @@ x=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
 y=$(awk '/MemFree/ {print $2}' /proc/meminfo)
 CLANG_VERSION=r399163b
 DEFCONFIG=onclite-perf_defconfig
-ANDROID_PATCH=10.0.0_r35
+ANDROID_PATCH=10.0.0_r47
 
 get_tools()
 {
