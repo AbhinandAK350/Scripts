@@ -12,6 +12,9 @@ GREEN='\033[0;32m'
 NOC='\033[0;m'
 x=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
 y=$(awk '/MemFree/ {print $2}' /proc/meminfo)
+CLANG_VERSION=r399163b
+DEFCONFIG=onclite-perf_defconfig
+ANDROID_PATCH=10.0.0_r35
 
 get_tools()
 {
@@ -23,8 +26,8 @@ get_tools()
 	echo -e "\n${BLUE}Cloning toolchain...${NOC}"
 	echo " "
 	# Clone toolchain
-	git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b android-10.0.0_r35 --depth=1 stock
-	git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 -b android-10.0.0_r35 --depth=1 stock_32
+	git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b android-${ANDROID_PATCH} --depth=1 stock
+	git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 -b android-${ANDROID_PATCH} --depth=1 stock_32
 
 	echo -e "\n${BLUE}Cloning AnyKernel3...${NOC}"
 	echo " "
@@ -35,29 +38,18 @@ get_tools()
 	echo " "
 	#Download Clang
 	if [ ! -d clang ]; then
-	    wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r383902c.tar.gz
-	    mkdir -p clang/clang-r383902c
-	    tar xvzf clang-r383902c.tar.gz -C clang/clang-r383902c
-	    rm clang-r383902c.tar.gz
+	    wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-${CLANG_VERSION}.tar.gz
+	    mkdir -p clang/clang-${CLANG_VERSION}
+	    tar xvzf clang-r383902c.tar.gz -C clang/clang-${CLANG_VERSION}
+	    rm clang-${CLANG_VERSION}.tar.gz
 	fi
 
-	echo -e "\n${BLUE}Downloading libufdt...${NOC}"
-	echo " "
-	# Download libufdt
-	if [ ! -d libufdt ]; then
-	    wget https://android.googlesource.com/platform/system/libufdt/+archive/refs/tags/android-10.0.0_r35/utils.tar.gz
-	    mkdir -p libufdt
-	    tar xvzf utils.tar.gz -C libufdt
-	    rm utils.tar.gz
-	fi
 	echo -e "\n${GREEN}Tools installation done! Starting build...${NOC}"
 	echo " "
 }
 
 build()
 {
-	echo "Entert the name of the defconfig"
-	read DEFCONFIG
 	echo -e "\n${YELLOW}Processor cores: "$(nproc)
 	echo -e "${YELLOW}Total Memory: "`expr $x \/ 1024 \/ 1024` GB
 	echo -e "${YELLOW}Free Memory: "`expr $y \/ 1024 \/ 1024` GB
@@ -70,7 +62,7 @@ build()
 	CONFIG=$DEFCONFIG
 	CROSS_COMPILE="aarch64-linux-android-"
 	CROSS_COMPILE_ARM32="arm-linux-androideabi-"
-	PATH=:"${KERNEL_DIR}/clang/clang-r383902c/bin:${PATH}:${KERNEL_DIR}/stock/bin:${PATH}:${KERNEL_DIR}/stock_32/bin:${PATH}"
+	PATH=:"${KERNEL_DIR}/clang/clang-${CLANG_VERSION}/bin:${PATH}:${KERNEL_DIR}/stock/bin:${PATH}:${KERNEL_DIR}/stock_32/bin:${PATH}"
 
 	# Export
 	export ARCH=arm64
