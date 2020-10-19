@@ -40,7 +40,7 @@ get_tools()
 	if [ ! -d clang ]; then
 	    wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-${CLANG_VERSION}.tar.gz
 	    mkdir -p clang/clang-${CLANG_VERSION}
-	    tar xvzf clang-r383902c.tar.gz -C clang/clang-${CLANG_VERSION}
+	    tar xvzf clang-${CLANG_VERSION}.tar.gz -C clang/clang-${CLANG_VERSION}
 	    rm clang-${CLANG_VERSION}.tar.gz
 	fi
 
