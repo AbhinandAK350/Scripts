@@ -93,13 +93,37 @@ build()
 	echo -e "\n${GREEN}Build successfull!${NOC}\n"
 }
 
-echo "Do you want to setup build environment?(Y/N)"
-read env_setup
-case $env_setup in
-[Yy]* )
-	get_tools
-	build
-;;
-[Nn]* )
-	build
-esac
+regen()
+{
+        export ARCH=arm64
+        make O=out $DEFCONFIG savedefconfig
+        cp out/defconfig arch/arm64/configs/$DEFCONFIG
+}
+
+function parse_parameters() {
+    while [[ $# -ge 1 ]]; do
+        case ${1} in
+            "-b"|"--build")
+                shift
+                build ;;
+            "-t"|"--tools")
+                shift
+                get_tools ;;
+            "-r"|"--regen")
+                shift
+                regen ;;
+            "-h"|"--help")
+                shift
+                echo "${BOLD}parameters:${RST}"
+                echo "    -b | --build"
+                echo "    -t | --tools"
+                echo "    -r | --regen"
+                echo ;;
+            *)
+                shift
+                echo "Invalid argument. -h or --help for help";;
+        esac
+    done
+}
+
+parse_parameters "$@"
