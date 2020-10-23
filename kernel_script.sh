@@ -130,6 +130,32 @@ function build_gcc()
 	echo -e "\n${GREEN}Build completed!${NOC}"
 }
 
+function miui()
+{
+	# For MIUI Build
+	# Credit Adek Maulana <adek@techdro.id>
+	OUTDIR="$KERNEL_DIR/out/"
+	VENDOR_MODULEDIR="$KERNEL_DIR/AnyKernel3/modules/vendor/lib/modules"
+	STRIP="$KERNEL_DIR/stock/bin/$(echo "$(find "$KERNEL_DIR/stock/bin" -type f -name "aarch64-*-gcc")" | awk -F '/' '{print $NF}' | \sed -e 's/gcc/strip/')"
+
+	echo -e "\n${BLUE}Moving modules for MIUI${NOC}"
+
+	for MODULES in $(find "${OUTDIR}" -name '*.ko'); do
+		"${STRIP}" --strip-unneeded --strip-debug "${MODULES}"
+		"${OUTDIR}"/scripts/sign-file sha512 \
+            	"${OUTDIR}/certs/signing_key.pem" \
+            	"${OUTDIR}/certs/signing_key.x509" \
+            	"${MODULES}"
+    		find "${OUTDIR}" -name '*.ko' -exec cp {} "${VENDOR_MODULEDIR}" \;
+    		case ${MODULES} in
+            	     */wlan.ko)
+        	     cp "${MODULES}" "${VENDOR_MODULEDIR}/pronto_wlan.ko" ;;
+		esac
+	done
+	echo -e "\n${GREEN}Done moving modules!${NOC}"
+	rm "${VENDOR_MODULEDIR}/wlan.ko"
+}
+
 function regen()
 {
         export ARCH=arm64
@@ -144,13 +170,14 @@ function parse_parameters() {
 	    case ${2} in
                 "-g"|"--gcc")
                     shift
-                    set_env
                     build_gcc ;;
                 "-c"|"--clang")
                     shift
-                    set_env
                     build_clang ;;
             esac ;;
+	    "-m"|"--miui")
+		shift
+		miui ;;
             "-t"|"--tools")
                 shift
                 get_tools ;;
@@ -163,13 +190,14 @@ function parse_parameters() {
                 echo "    -b | --build"
                 echo "    -t | --tools"
                 echo "    -r | --regen"
-                echo ;;
+                echo "" ;;
             *)
                 shift
-                echo "Invalid argument. -h or --help for help";;
+                echo "Invalid argument. -h or --help for help" ;;
         esac
     done
 }
 
+set_env
 set_color
 parse_parameters "$@"
