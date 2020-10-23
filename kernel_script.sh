@@ -5,18 +5,39 @@
 # Copyright (C) 2020 Abhinand A K.
 # Android Kernel Build Script
 
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-YELLOW='\033[0;33m'
-GREEN='\033[0;32m'
-NOC='\033[0;m'
-x=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
-y=$(awk '/MemFree/ {print $2}' /proc/meminfo)
 CLANG_VERSION=r399163b
 DEFCONFIG=onclite-perf_defconfig
 ANDROID_PATCH=10.0.0_r47
 
-get_tools()
+function set_color()
+{
+	RED='\033[0;31m'
+        BLUE='\033[0;34m'
+        YELLOW='\033[0;33m'
+        GREEN='\033[0;32m'
+        NOC='\033[0;m'
+}
+
+function set_env()
+{
+	x=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+	y=$(awk '/MemFree/ {print $2}' /proc/meminfo)
+
+	# Export
+        export ARCH=arm64
+        export CROSS_COMPILE
+        export CROSS_COMPILE_ARM32
+
+        # Main environment
+        KERNEL_DIR=$PWD
+        KERN_IMG=$KERNEL_DIR/out/arch/arm64/boot/Image.gz-dtb
+        ZIP_DIR=$KERNEL_DIR/AnyKernel3
+        CONFIG=$DEFCONFIG
+        CROSS_COMPILE="aarch64-linux-android-"
+        CROSS_COMPILE_ARM32="arm-linux-androideabi-"
+}
+
+function get_tools()
 {
 	echo -e "\n${BLUE}Installing tools...${NOC}"
 	echo " "
@@ -44,30 +65,17 @@ get_tools()
 	    rm clang-${CLANG_VERSION}.tar.gz
 	fi
 
-	echo -e "\n${GREEN}Tools installation done! Starting build...${NOC}"
+	echo -e "\n${GREEN}Tools installation done!${NOC}"
 	echo " "
 }
 
-build()
+function build_clang()
 {
 	echo -e "\n${YELLOW}Processor cores: "$(nproc)
 	echo -e "${YELLOW}Total Memory: "`expr $x \/ 1024 \/ 1024` GB
 	echo -e "${YELLOW}Free Memory: "`expr $y \/ 1024 \/ 1024` GB
-	echo -e "\n${BLUE}Build started...${NOC}"
-	echo ""
-	# Main environtment
-	KERNEL_DIR=$PWD
-	KERN_IMG=$KERNEL_DIR/out/arch/arm64/boot/Image.gz-dtb
-	ZIP_DIR=$KERNEL_DIR/AnyKernel3
-	CONFIG=$DEFCONFIG
-	CROSS_COMPILE="aarch64-linux-android-"
-	CROSS_COMPILE_ARM32="arm-linux-androideabi-"
+	echo -e "\n${BLUE}Starting build...${NOC}\n"
 	PATH=:"${KERNEL_DIR}/clang/clang-${CLANG_VERSION}/bin:${PATH}:${KERNEL_DIR}/stock/bin:${PATH}:${KERNEL_DIR}/stock_32/bin:${PATH}"
-
-	# Export
-	export ARCH=arm64
-	export CROSS_COMPILE
-	export CROSS_COMPILE_ARM32
 
 	# Build start
 	make O=out $CONFIG
@@ -93,7 +101,36 @@ build()
 	echo -e "\n${GREEN}Build successfull!${NOC}\n"
 }
 
-regen()
+function build_gcc()
+{
+	echo -e "\n${YELLOW}Processor cores: "$(nproc)
+        echo -e "${YELLOW}Total Memory: "`expr $x \/ 1024 \/ 1024` GB
+        echo -e "${YELLOW}Free Memory: "`expr $y \/ 1024 \/ 1024` GB
+	echo -e "\n${BLUE}Starting build...${NOC}\n"
+	PATH="${KERNEL_DIR}/stock/bin:${PATH}:${KERNEL_DIR}/stock_32/bin:${PATH}"
+
+        # Build start
+        make O=out $CONFIG
+        make -j$(nproc --all) O=out
+
+        if ! [ -a $KERN_IMG ]; then
+            echo -e "${RED}Build error!${NOC}"
+            exit 1
+        fi
+
+        cd $ZIP_DIR
+        make clean &>/dev/null
+        cd ..
+
+        cd $ZIP_DIR
+        cp $KERN_IMG zImage
+        make normal &>/dev/null
+        echo -e "\n${BLUE}Flashable zip generated under $ZIP_DIR.${NOC}"
+        cd ..
+	echo -e "\n${GREEN}Build completed!${NOC}"
+}
+
+function regen()
 {
         export ARCH=arm64
         make O=out $DEFCONFIG savedefconfig
@@ -104,8 +141,16 @@ function parse_parameters() {
     while [[ $# -ge 1 ]]; do
         case ${1} in
             "-b"|"--build")
-                shift
-                build ;;
+	    case ${2} in
+                "-g"|"--gcc")
+                    shift
+                    set_env
+                    build_gcc ;;
+                "-c"|"--clang")
+                    shift
+                    set_env
+                    build_clang ;;
+            esac ;;
             "-t"|"--tools")
                 shift
                 get_tools ;;
@@ -126,4 +171,5 @@ function parse_parameters() {
     done
 }
 
+set_color
 parse_parameters "$@"
