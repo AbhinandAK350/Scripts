@@ -167,14 +167,16 @@ function parse_parameters() {
     while [[ $# -ge 1 ]]; do
         case ${1} in
             "-b"|"--build")
-	    case ${2} in
+            case ${2} in
                 "-g"|"--gcc")
                     shift
                     build_gcc ;;
                 "-c"|"--clang")
                     shift
                     build_clang ;;
-            esac ;;
+            esac
+            echo "${RED}Expecting an extra flag${NOC}"
+            exit 1 ;;
 	    "-m"|"--miui")
 		shift
 		miui ;;
