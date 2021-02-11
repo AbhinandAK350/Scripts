@@ -1,205 +1,80 @@
-#!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (C) 2018 Raphiel Rollerscaperers (raphielscape)
-# Copyright (C) 2018 Rama Bondan Prakoso (rama982)
-# Copyright (C) 2020 Abhinand A K.
-# Android Kernel Build Script
+# Kernel compliation script
+# © copyright 2021. Abhinand A K
 
-CLANG_VERSION=r399163b
-DEFCONFIG=onclite-perf_defconfig
-ANDROID_PATCH=10.0.0_r47
+# Env
+export PATH="$HOME/proton-clang/bin:$PATH"
+SECONDS=0
+DEVICE=""
+KERNEL_NAME="perf"
+export ARCH="arm64"
+CONFIG="$DEVICE-perf_defconfig"
+ZIPNAME="$KERNEL_NAME-$DEVICE-$(date '+%Y%m%d-%H%M').zip"
 
-function set_color()
-{
-	RED='\033[0;31m'
-        BLUE='\033[0;34m'
-        YELLOW='\033[0;33m'
-        GREEN='\033[0;32m'
-        NOC='\033[0;m'
-}
+# Clang
+if ! [ -d "$HOME/proton-clang" ]; then
+	echo "Proton clang not found! Cloning..."
+	if ! git clone -q --depth=1 --single-branch https://github.com/kdrag0n/proton-clang ~/proton; then
+		echo "Cloning failed! Aborting..."
+		exit 1
+	fi
+fi
 
-function set_env()
-{
-	x=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
-	y=$(awk '/MemFree/ {print $2}' /proc/meminfo)
+mkdir -p out
+ccache make O=out ARCH=$ARCH $CONFIG
 
-	# Export
-        export ARCH=arm64
-        export CROSS_COMPILE
-        export CROSS_COMPILE_ARM32
+# Compile
+if [[ $1 == "-r" || $1 == "--regen" ]]; then
+	cp out/.config arch/$ARCH/configs/$CONFIG
+	echo -e "\nRegened defconfig succesfully!"
+	exit 0
+else
+	echo -e "\nStarting compilation...\n"
+	if [ $ARCH == "arm64" ]; then IMAGE="Image.gz-dtb" ; elif [ $ARCH == "arm" ]; then IMAGE="zImage-dtb" ; fi
+	ccache make -j$(nproc --all) O=out ARCH=arm64 CC=clang AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- $IMAGE dtbo.img
+fi
 
-        # Main environment
-        KERNEL_DIR=$PWD
-        KERN_IMG=$KERNEL_DIR/out/arch/arm64/boot/Image.gz-dtb
-        ZIP_DIR=$KERNEL_DIR/AnyKernel3
-        CONFIG=$DEFCONFIG
-        CROSS_COMPILE="aarch64-linux-android-"
-        CROSS_COMPILE_ARM32="arm-linux-androideabi-"
-}
-
-function get_tools()
-{
-	echo -e "\n${BLUE}Installing tools...${NOC}"
-	echo " "
-	# Install build package for debian based linux
-	sudo apt-get -y install bc bash git-core gnupg build-essential zip curl make automake autogen autoconf autotools-dev libtool shtool python m4 gcc libtool zlib1g-dev flex bison libssl-dev
-
-	echo -e "\n${BLUE}Cloning toolchain...${NOC}"
-	echo " "
-	# Clone toolchain
-	git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 -b android-${ANDROID_PATCH} --depth=1 stock
-	git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9 -b android-${ANDROID_PATCH} --depth=1 stock_32
-
-	echo -e "\n${BLUE}Cloning AnyKernel3...${NOC}"
-	echo " "
-	# Clone AnyKernel3
-	git clone https://github.com/AbhinandAK350/AnyKernel3 -b onclite
-
-	echo -e "\n${BLUE}Downoading clang...${NOC}"
-	echo " "
-	#Download Clang
-	if [ ! -d clang ]; then
-	    wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-${CLANG_VERSION}.tar.gz
-	    mkdir -p clang/clang-${CLANG_VERSION}
-	    tar xvzf clang-${CLANG_VERSION}.tar.gz -C clang/clang-${CLANG_VERSION}
-	    rm clang-${CLANG_VERSION}.tar.gz
+# Packing
+if [ -f "out/arch/$ARCH/boot/Image.gz-dtb" ] && [ -f "out/arch/$ARCH/boot/dtbo.img" ]; then
+	echo -e "\nKernel compiled succesfully! Zipping up...\n"
+	if ! [ -d "AnyKernel3" ]; then
+		git clone -q https://github.com/AbhinandAK350/AnyKernel3 -b $DEVICE
 	fi
 
-	echo -e "\n${GREEN}Tools installation done!${NOC}"
-	echo " "
-}
+	if [[ $1 == "-m" || $1 == "--miui" ]]; then
+		# For MIUI
+		# Credit Adek Maulana <adek@techdro.id>
+		OUTDIR="$PWD/out/"
+		VENDOR_MODULEDIR="$PWD/AnyKernel3/modules/vendor/lib/modules"
 
-function build_clang()
-{
-	echo -e "\n${YELLOW}Processor cores: "$(nproc)
-	echo -e "${YELLOW}Total Memory: "`expr $x \/ 1024 \/ 1024` GB
-	echo -e "${YELLOW}Free Memory: "`expr $y \/ 1024 \/ 1024` GB
-	echo -e "\n${BLUE}Starting build...${NOC}\n"
-	PATH=:"${KERNEL_DIR}/clang/clang-${CLANG_VERSION}/bin:${PATH}:${KERNEL_DIR}/stock/bin:${PATH}:${KERNEL_DIR}/stock_32/bin:${PATH}"
+		STRIP="$HOME/proton-clang/aarch64-linux-gnu/bin/strip$(echo "$(find "$HOME/proton-clang/bin" -type f -name "aarch64-*-gcc")" | awk -F '/' '{print $NF}' |\
+				sed -e 's/gcc/strip/')"
 
-	# Build start
-	make O=out $CONFIG
-	make -j$(nproc --all) O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android-
+		for MODULES in $(find "${OUTDIR}" -name '*.ko'); do
+			"${STRIP}" --strip-unneeded --strip-debug "${MODULES}"
+			"${OUTDIR}"/scripts/sign-file sha512 \
+					"${OUTDIR}/certs/signing_key.pem" \
+					"${OUTDIR}/certs/signing_key.x509" \
+					"${MODULES}"
+			find "${OUTDIR}" -name '*.ko' -exec cp {} "${VENDOR_MODULEDIR}" \;
 
-	if ! [ -a $KERN_IMG ]; then
-	    echo ""
-	    echo -e "${RED}Build error!${NOC}"
-	    exit 1
+			case ${MODULES} in
+					*/wlan.ko)
+				cp "${MODULES}" "${VENDOR_MODULEDIR}/pronto_wlan.ko" ;;
+			esac
+
+		done
 	fi
 
-	cd $ZIP_DIR
-	make clean &>/dev/null
+	cp out/arch/$ARCH/boot/Image.gz-dtb AnyKernel3
+	cp out/arch/$ARCH/boot/dtbo.img AnyKernel3
+	rm -f *zip
+	cd AnyKernel3
+	rm -f *zip
+	zip -r9 "../$ZIPNAME" * -x '*.git*' README.md *placeholder
 	cd ..
-
-	cd $ZIP_DIR
-	cp $KERN_IMG zImage
-	make normal &>/dev/null
-	echo -e "\n${BLUE}Flashable zip generated under $ZIP_DIR.${NOC}"
-	cd ..
-	# Build end
-	echo ""
-	echo -e "\n${GREEN}Build successfull!${NOC}\n"
-}
-
-function build_gcc()
-{
-	echo -e "\n${YELLOW}Processor cores: "$(nproc)
-        echo -e "${YELLOW}Total Memory: "`expr $x \/ 1024 \/ 1024` GB
-        echo -e "${YELLOW}Free Memory: "`expr $y \/ 1024 \/ 1024` GB
-	echo -e "\n${BLUE}Starting build...${NOC}\n"
-	PATH="${KERNEL_DIR}/stock/bin:${PATH}:${KERNEL_DIR}/stock_32/bin:${PATH}"
-
-        # Build start
-        make O=out $CONFIG
-        make -j$(nproc --all) O=out
-
-        if ! [ -a $KERN_IMG ]; then
-            echo -e "${RED}Build error!${NOC}"
-            exit 1
-        fi
-
-        cd $ZIP_DIR
-        make clean &>/dev/null
-        cd ..
-
-        cd $ZIP_DIR
-        cp $KERN_IMG zImage
-        make normal &>/dev/null
-        echo -e "\n${BLUE}Flashable zip generated under $ZIP_DIR.${NOC}"
-        cd ..
-	echo -e "\n${GREEN}Build completed!${NOC}"
-}
-
-function miui()
-{
-	# For MIUI Build
-	# Credit Adek Maulana <adek@techdro.id>
-	OUTDIR="$KERNEL_DIR/out/"
-	VENDOR_MODULEDIR="$KERNEL_DIR/AnyKernel3/modules/vendor/lib/modules"
-	STRIP="$KERNEL_DIR/stock/bin/$(echo "$(find "$KERNEL_DIR/stock/bin" -type f -name "aarch64-*-gcc")" | awk -F '/' '{print $NF}' | \sed -e 's/gcc/strip/')"
-
-	echo -e "\n${BLUE}Moving modules for MIUI${NOC}"
-
-	for MODULES in $(find "${OUTDIR}" -name '*.ko'); do
-		"${STRIP}" --strip-unneeded --strip-debug "${MODULES}"
-		"${OUTDIR}"/scripts/sign-file sha512 \
-            	"${OUTDIR}/certs/signing_key.pem" \
-            	"${OUTDIR}/certs/signing_key.x509" \
-            	"${MODULES}"
-    		find "${OUTDIR}" -name '*.ko' -exec cp {} "${VENDOR_MODULEDIR}" \;
-    		case ${MODULES} in
-            	     */wlan.ko)
-        	     cp "${MODULES}" "${VENDOR_MODULEDIR}/pronto_wlan.ko" ;;
-		esac
-	done
-	echo -e "\n${GREEN}Done moving modules!${NOC}"
-	rm "${VENDOR_MODULEDIR}/wlan.ko"
-}
-
-function regen()
-{
-        export ARCH=arm64
-        make O=out $DEFCONFIG savedefconfig
-        cp out/defconfig arch/arm64/configs/$DEFCONFIG
-}
-
-function parse_parameters() {
-    while [[ $# -ge 1 ]]; do
-        case ${1} in
-            "-b"|"--build")
-            case ${2} in
-                "-g"|"--gcc")
-                    shift
-                    build_gcc ;;
-                "-c"|"--clang")
-                    shift
-                    build_clang ;;
-            esac
-            echo "${RED}Expecting an extra flag${NOC}"
-            exit 1 ;;
-	    "-m"|"--miui")
-		shift
-		miui ;;
-            "-t"|"--tools")
-                shift
-                get_tools ;;
-            "-r"|"--regen")
-                shift
-                regen ;;
-            "-h"|"--help")
-                shift
-                echo "${BOLD}parameters:${RST}"
-                echo "    -b | --build"
-                echo "    -t | --tools"
-                echo "    -r | --regen"
-                echo "" ;;
-            *)
-                shift
-                echo "Invalid argument. -h or --help for help" ;;
-        esac
-    done
-}
-
-set_env
-set_color
-parse_parameters "$@"
+	echo -e "\nCompleted in $((SECONDS / 60)) minute(s) and $((SECONDS % 60)) second(s) !"
+	echo "Zip: $ZIPNAME"
+	rm -rf out/arch/$ARCH/boot
+else
+	echo -e "\nCompilation failed!"
+fi
