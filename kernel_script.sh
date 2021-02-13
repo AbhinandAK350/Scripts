@@ -78,7 +78,7 @@ if [ -f "out/arch/$ARCH/boot/Image.gz-dtb" ] && [ -f "out/arch/$ARCH/boot/dtbo.i
 	if [ -f AnyKernel3/dtbo.img ]; then rm AnyKernel3/dtbo.img ; fi
 	if [ -f AnyKernel3/Image.gz-dtb ]; then rm AnyKernel3/Image.gz-dtb ; fi
 	if [ -f Anykernel3/zImage.dtb ]; then rm Anykernel3/zImage.dtb ; fi
-	if find AnyKernel3/modules/vendor/lib/modules/* -maxdepth 0 -type f | read ; then rm AnyKernel3/modules/vendor/lib/modules/* ; fi
+	if [[ $1 == "-m" || $1 == "--miui" ]]; then rm AnyKernel3/modules/vendor/lib/modules/* ; fi
 	echo -e "\n${YELLOW}Completed in $((SECONDS / 60)) minute(s) and $((SECONDS % 60)) second(s) !${NC}"
 	echo "Zip: $ZIPNAME"
 	rm -rf out/arch/$ARCH/boot
